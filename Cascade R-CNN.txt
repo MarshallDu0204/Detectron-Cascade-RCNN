@@ -1,0 +1,67 @@
+Cascade R-CNN
+
+Faster R-CNN 训练流程
+
+Backbone(VGG16 or Resnet101)
+得到feature map
+
+将feature map 输入到RPN layer中 获得 proposals
+RPN层的作用：cls + regression
+cls区分的是前景与背景 训练时取前景的阈值为IOU 0.7
+标注数据时取大于阈值为IOU 0.7为前景,小于IOU 0.3为背景
+前景与背景标注的数据各自不超过128个（random sample）确保样本平均
+
+训练后的RPN预测原来的feature map, 平均会产生2000个候选框
+
+通过NMS选取300个
+
+再通过 calc_rpn 选取阈值大于0.5的标注为正样本，0.1-0.5标注为背景样本（负样本），小于0.1丢弃
+
+再通过 ROI pooling / ROI align 运算
+
+最后再通过两层 Fully Connect ,输入正常的标签进行分类与回归(非背景的会有最终类标签)
+
+第18行的意义再于再度训练Fully Connect 层区分 RPN层输出的能力
+RPN输出层质量不高，需要通过训练再度区分背景，并进行最终分类与回归
+
+
+*-----------------------------------------------------*
+
+Cascade R-CNN 提出第18行的操作（标注方法）产出的proposal质量不高，影响Fully Connect 层的训练
+
+而强行提高第18行的标注阈值会另正样本太少，导致样本不均衡
+
+改变：
+
+CONV 层与RPN层的操作（包括NMS） 与16行前相同
+
+接下来分为三个stage
+stage1 选取阈值大于0.5的标注为正样本，其余标注为背景样本
+
+通过ROI Pooling / ROI align (stage1)
+
+以及fully connect (stage1) 层 （此 fully connect层不做最终分类，只负责区分IOU大于0.5的前景 与小于0.5的背景）
+
+stage2 用41-43行的模型进行预测, 对输出的proposal 进行标注（大于IOU0.6为前景，小于0.6为背景）
+
+通过ROI Pooling / ROI align (stage2)
+
+以及fully connect (stage2) 层 （此 fully connect层不做最终分类，只负责区分IOU大于0.6的前景 与小于0.6的背景）
+
+stage3 用47-49行的模型进行预测, 对输出的proposal 进行标注（大于IOU0.7为前景，小于0.7为背景）
+
+通过ROI Pooling / ROI align (stage3)
+
+以及fully connect (stage3) 层 （此 fully connect层做最终分类，并负责区分IOU大于0.7的前景 与小于0.7的背景）
+
+最终网络结构：
+BACKBONE --> RPN --> NMS --> stage1 rpi pooling + Fully Connect (只分前景背景)
+--> stage2 rpi pooling + Fully Connect (只分前景背景) --> stage3 rpi pooling + Fully Connect (最终分类)
+
+思路：
+高质量的分类器(最终的roi pooling和fully connect层) 适用于高质量的proposal输入
+proposal输入质量不高会造成mismatch
+
+而强行提高阈值(0.5-0.7)会导致样本不均衡
+
+从而提出了3-stage的解决方案 分级筛选出高质量的proposal,从而可以训练出最后一层高质量的分类器
