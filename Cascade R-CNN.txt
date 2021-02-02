@@ -65,3 +65,23 @@ proposal输入质量不高会造成mismatch
 而强行提高阈值(0.5-0.7)会导致样本不均衡
 
 从而提出了3-stage的解决方案 分级筛选出高质量的proposal,从而可以训练出最后一层高质量的分类器
+
+*--------------------------------------------------*
+新的backbone feature extrator: RexNeXt
+
+ResNeXt
+与Inception 不同的点是ResNeXt采用相同的卷积结构(不同的path)对一张图片进行卷积特征提取(不同path并行卷积，path结构相同)并对结果拼接, 并结合输入进行残差计算
+Inception 中单层的输入进行不同size的卷积 并对结果进行拼接concatenate
+ResNeXt 中卷积size相同，分为32个path卷积， 并且对结果拼接，再进行残差运算
+
+Example：
+ResNeXt:
+Image --> 7*7 conv --> 3*3 maxpool --> ResNeXt Block1 --> ResNeXt Block2 
+--> ResNeXt Block3 --> ResNeXt Block4
+
+Example of ResNeXt block:
+ConvResult of Prev layer -->{32 parallel path x [conv(1*1:4 , 3*3:4)]} --> concatenate 32 parallel result
+(out_dim = 4*32 = 128) --> conv (1,1:256) --> Residual Calculation with input
+Note: conv(x*x:dim)  x--> kernel size, dim-->outdim
+
+论文：https://arxiv.org/pdf/1611.05431.pdf
